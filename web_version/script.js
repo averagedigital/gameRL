@@ -210,10 +210,16 @@ class Bike {
 
         if (this.isHuman) {
             // Human Control
-            if (keys['ArrowRight'] || keys['KeyD']) gas = 1;
-            if (keys['ArrowLeft'] || keys['KeyA']) gas = -1;
-            if (keys['ArrowUp'] || keys['KeyW']) lean = 1;   // Lean forward (CW torque)
-            if (keys['ArrowDown'] || keys['KeyS']) lean = -1; // Lean back
+            // Swapped Controls as requested:
+            // Arrow Down / S = Gas (Forward)
+            // Arrow Up / W = Brake/Back
+            // Arrow Right / D = Lean Forward
+            // Arrow Left / A = Lean Back
+            
+            if (keys['ArrowDown'] || keys['KeyS']) gas = 1;
+            if (keys['ArrowUp'] || keys['KeyW']) gas = -1;
+            if (keys['ArrowRight'] || keys['KeyD']) lean = 1;   // Lean forward
+            if (keys['ArrowLeft'] || keys['KeyA']) lean = -1; // Lean back
         } else {
             // AI Control
             // Inputs
@@ -617,17 +623,40 @@ function loop() {
     // Rendering
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Camera Follow
-    let bestBike = population.find(b => b.alive) || population[0];
-    let maxDist = -Infinity;
-    population.forEach(b => {
-        if(b.alive && b.distance > maxDist) {
-            maxDist = b.distance;
-            bestBike = b;
-        }
-    });
+    // Draw Wasted Overlay if human dead
+    if (isHumanMode && humanBike && !humanBike.alive) {
+         ctx.save();
+         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+         ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.fillStyle = "red";
+         ctx.font = "bold 60px Arial";
+         ctx.textAlign = "center";
+         ctx.fillText("WASTED", canvas.width/2, canvas.height/2);
+         ctx.fillStyle = "white";
+         ctx.font = "20px Arial";
+         ctx.fillText("Respawning...", canvas.width/2, canvas.height/2 + 40);
+         ctx.restore();
+         // Don't follow camera if wasted? Or keep following dead body?
+         // Let's keep following dead body for drama, but we need to set camera transform BEFORE overlay?
+         // No, overlay should be on top of everything. 
+         // So we need to do standard rendering first, then overlay.
+    }
     
-    if (!bestBike) bestBike = population[0];
+    // Camera Follow logic moved before Overlay
+    let bestBike = population.find(b => b.alive) || population[0];
+    // In human mode, if dead, still follow the dead body
+    if (isHumanMode && humanBike) bestBike = humanBike; 
+    
+    let maxDist = -Infinity;
+    if (!isHumanMode) {
+        population.forEach(b => {
+            if(b.alive && b.distance > maxDist) {
+                maxDist = b.distance;
+                bestBike = b;
+            }
+        });
+        if (!bestBike) bestBike = population[0];
+    }
     
     ctx.save();
     // Center camera on best bike
@@ -648,13 +677,13 @@ function loop() {
     
     // Draw Bikes
     population.forEach(bike => {
-        if(!bike.alive) return; // Optional: don't draw dead ones
+        // if(!bike.alive) return; // Draw dead ones too for physics debug
         
         // Chassis
         ctx.save();
         ctx.translate(bike.chassis.position.x, bike.chassis.position.y);
         ctx.rotate(bike.chassis.angle);
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = bike.isHuman ? '#3498db' : '#e74c3c'; // Blue for human
         ctx.fillRect(-CHASSIS_WIDTH/2, -CHASSIS_HEIGHT/2, CHASSIS_WIDTH, CHASSIS_HEIGHT);
         ctx.restore();
         
@@ -672,8 +701,8 @@ function loop() {
             ctx.stroke();
         });
         
-        // Rays
-        if(bike.lastRays) {
+        // Rays (only draw if alive or debug)
+        if(bike.alive && bike.lastRays) {
             bike.lastRays.forEach(ray => {
                 ctx.beginPath();
                 ctx.moveTo(ray.start.x, ray.start.y);
@@ -689,26 +718,32 @@ function loop() {
     
     // UI Update
     document.getElementById('alive').innerText = population.filter(b => b.alive).length;
-    document.getElementById('best').innerText = Math.floor(maxDist);
+    document.getElementById('best').innerText = Math.floor(bestBike.distance);
     
-    // Human Mode Respawn Check
-    if (isHumanMode && humanBike && !humanBike.alive && !window.respawnTimeout) {
-        // Draw WASTED
-        ctx.save();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "red";
-        ctx.font = "bold 60px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("WASTED", canvas.width/2, canvas.height/2);
-        ctx.fillStyle = "white";
-        ctx.font = "20px Arial";
-        ctx.fillText("Respawning...", canvas.width/2, canvas.height/2 + 40);
-        ctx.restore();
-        
-        window.respawnTimeout = setTimeout(() => {
-            respawnHuman();
-        }, 2000);
+    // Draw Wasted Overlay (Using absolute coordinates, so outside ctx.save/restore of camera)
+    if (isHumanMode && humanBike && !humanBike.alive) {
+         ctx.save();
+         // Reset transform just in case
+         ctx.setTransform(1, 0, 0, 1, 0, 0);
+         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+         ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.fillStyle = "red";
+         ctx.font = "bold 60px Arial";
+         ctx.textAlign = "center";
+         ctx.fillText("WASTED", canvas.width/2, canvas.height/2);
+         ctx.fillStyle = "white";
+         ctx.font = "20px Arial";
+         ctx.fillText("Respawning...", canvas.width/2, canvas.height/2 + 40);
+         ctx.restore();
+    }
+    
+    // Human Mode Respawn Logic Check
+    if (isHumanMode && humanBike && !humanBike.alive) {
+        if (!window.respawnTimeout) {
+             window.respawnTimeout = setTimeout(() => {
+                respawnHuman();
+            }, 2000);
+        }
     }
 
     requestAnimationFrame(loop);
