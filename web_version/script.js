@@ -851,10 +851,14 @@ function createPopulation() {
     // Bike 3: x=50...
     
     // Ghost Mode is ON: Spawn all at SAME spot (150)
+    // Y Position: 200 is too low? Terrain starts at Y=500 (screen coords, where 0 is top).
+    // Let's spawn them HIGH above the runway to guarantee drop.
+    // Runway is at Y=500. Spawn at Y=300 (above).
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
         // Spacing: 0 (Ghost Mode)
-        const b = new Bike(150, 200, brain);
+        // Spawn Y: 300 (Safety Drop)
+        const b = new Bike(150, 300, brain);
         b.addToWorld(world);
         population.push(b);
     }
