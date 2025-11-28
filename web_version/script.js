@@ -206,42 +206,31 @@ class Bike {
         
         // Collision Filter:
         // category 0x0002 (Bike)
-        // mask    0x0001 (Terrain) | 0x0002 (Other Bikes) - Enable collision!
+        // mask    0x0001 (Terrain) - IGNORE other bikes (Ghost Mode)
         const bikeCategory = 0x0002;
         const terrainCategory = 0x0001;
         
         // Parts of the SAME bike must not collide (use group)
-        // Different bikes collide if we include bikeCategory in mask
         
         const filter = {
             category: bikeCategory,
-            mask: terrainCategory | bikeCategory, // Collide with terrain AND other bikes
-            group: 0 // Matter.js groups: same non-zero group index don't collide. We want distinct bikes to collide.
-            // Actually, if we use group=0, they follow category/mask rules.
-            // But parts of the SAME bike shouldn't collide.
-            // We usually put parts of same bike in same negative group to prevent self-collision.
+            mask: terrainCategory, // Collide ONLY with terrain
+            group: 0 
         };
-        // We need unique group per bike instance to prevent self-collision but allow bike-bike collision
-        // Or we rely on mask.
-        // If we set mask to include bikeCategory, wheelBack will collide with chassis of SAME bike?
-        // Yes, unless we use groups.
         
-        // Correct way:
-        // Use a unique negative group for each bike instance to prevent self-collision.
-        // But allow collisions with everything else (terrain, other positive groups).
+        // We need unique group per bike instance to prevent self-collision but allow bike-bike collision?
+        // NO, we WANT Ghost Mode now. So we DON'T want bike-bike collision.
+        // So just set mask = terrainCategory.
+        // But we still need to prevent self-collision (wheels touching chassis).
+        // Standard negative group per bike handles self-collision.
         
-        // Since we want them to collide with EACH OTHER, they must have different groups?
-        // No, Matter.js: "Bodies with the same negative group will NOT collide."
-        // So each bike needs its OWN negative group.
-        
-        // Let's generate a random negative group ID
         const myGroup = Body.nextGroup(true); // true means non-colliding group
         
         // Re-override filter for self-collision prevention
         const finalFilter = {
              group: myGroup,
              category: bikeCategory,
-             mask: terrainCategory | bikeCategory
+             mask: terrainCategory // ONLY TERRAIN
         };
 
         // Chassis
@@ -684,13 +673,7 @@ function exportBestBrain() {
         // If human mode, export HUMAN brain
         if (humanBike) {
              const data = JSON.stringify(humanBike.brain);
-             navigator.clipboard.writeText(data).then(() => {
-                alert("Human Brain copied! Share it!");
-            }).catch(err => {
-                console.error('Async: Could not copy text: ', err);
-                // Fallback
-                prompt("Copy this:", data);
-            });
+             showModal("Copy Human Brain:", data);
             return;
         }
     }
@@ -703,18 +686,70 @@ function exportBestBrain() {
     const best = population.reduce((prev, current) => (prev.distance > current.distance) ? prev : current);
     const data = JSON.stringify(best.brain);
     
-    // Modern Clipboard API requires secure context (HTTPS or localhost)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(data).then(() => {
-            alert("Best Brain copied to clipboard! Paste this in Telegram.");
-        }).catch(err => {
-            console.error('Async: Could not copy text: ', err);
-            prompt("Copy this manually (Ctrl+C):", data);
-        });
-    } else {
-        // Fallback for older browsers or non-secure contexts
-        prompt("Copy this manually (Ctrl+C):", data);
+    // Custom Modal Output instead of clipboard (more reliable)
+    showModal("Copy this code:", data);
+}
+
+function importBrain() {
+    // Custom Modal Input
+    const data = prompt("Paste the Brain code here:");
+    if(!data) return;
+    
+    try {
+        const json = JSON.parse(data);
+        // Create a new population based on this brain
+        resetGeneration();
+        
+        // Setup new generation
+        const newBrains = [];
+        // 1. The imported brain (Exact copy) - Champion
+        const champion = new NeuralNetwork(5 + RAY_COUNT, 8, 2);
+        champion.w1 = json.w1; champion.b1 = json.b1; 
+        champion.w2 = json.w2; champion.b2 = json.b2;
+        newBrains.push(champion);
+        
+        // 2. Mutated clones of the imported brain
+        for(let i=1; i<POPULATION_SIZE; i++) {
+            const clone = champion.copy();
+            clone.mutate(MUTATION_RATE);
+            newBrains.push(clone);
+        }
+        
+        window.nextGenBrains = newBrains;
+        
+        // Re-create physics world
+        population.forEach(b => b.removeFromWorld(world));
+        population = [];
+        createPopulation();
+        generateTerrain(); // Optional: new terrain for new brain
+        
+        alert("Brain imported! Starting Evolution Gen 0 with this brain.");
+        
+    } catch(e) {
+        alert("Invalid Brain string!");
+        console.error(e);
     }
+}
+
+function showModal(title, text) {
+    // Simple overlay
+    let overlay = document.getElementById('modal-overlay');
+    if(!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'modal-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1000;';
+        document.body.appendChild(overlay);
+    }
+    
+    overlay.innerHTML = `
+        <div style="background:white;padding:20px;border-radius:10px;width:80%;max-width:500px;text-align:center;">
+            <h3>${title}</h3>
+            <textarea id="modal-text" style="width:100%;height:150px;margin:10px 0;">${text}</textarea>
+            <br>
+            <button onclick="document.getElementById('modal-text').select();document.execCommand('copy');">Copy to Clipboard</button>
+            <button onclick="document.getElementById('modal-overlay').remove()">Close</button>
+        </div>
+    `;
 }
 
 function importBrain() {
@@ -759,12 +794,11 @@ function createPopulation() {
     // Bike 2: x=100
     // Bike 3: x=50...
     
-    // Stagger them so they don't collide on spawn
+    // Ghost Mode is ON: Spawn all at SAME spot (150)
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
-        // Spacing: 200px between bikes (was 0)
-        // Start at 150, then 150-200, etc.
-        const b = new Bike(150 - (i * 200), 200, brain);
+        // Spacing: 0 (Ghost Mode)
+        const b = new Bike(150, 200, brain);
         b.addToWorld(world);
         population.push(b);
     }
