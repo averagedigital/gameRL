@@ -47,6 +47,66 @@ class NeuralNetwork {
         this.w2 = this.randomMatrix(hiddenSize, outputSize);
         this.b2 = this.randomMatrix(1, outputSize);
     }
+    
+    // Simple Backpropagation (SGD)
+    train(inputs, targets, learningRate = 0.1) {
+        // Forward pass (we need intermediate values)
+        // Hidden Layer
+        let h1_in = this.matmul([inputs], this.w1);
+        let h1 = this.addBias(h1_in, this.b1);
+        let h1_act = this.tanh(h1);
+        
+        // Output Layer
+        let out_in = this.matmul(h1_act, this.w2);
+        let out = this.addBias(out_in, this.b2);
+        let out_act = this.tanh(out);
+        
+        // Error (MSE derivative is just error for linear, for tanh it's error * derivative)
+        // Target is [gas, lean]
+        let error = [targets[0] - out_act[0][0], targets[1] - out_act[0][1]];
+        
+        // Backward Pass
+        // Output Gradients
+        // dE/dOut * dOut/dNet = error * (1 - out^2)
+        let out_grad = [];
+        for(let i=0; i<this.outputSize; i++) {
+            out_grad[i] = error[i] * (1 - out_act[0][i] * out_act[0][i]);
+        }
+        
+        // Hidden Gradients
+        // dE/dH = (dE/dOut * dOut/dH) * dH/dNet
+        let h_grad = [];
+        for(let i=0; i<this.hiddenSize; i++) {
+            let error_sum = 0;
+            for(let j=0; j<this.outputSize; j++) {
+                error_sum += out_grad[j] * this.w2[i][j];
+            }
+            h_grad[i] = error_sum * (1 - h1_act[0][i] * h1_act[0][i]);
+        }
+        
+        // Update Weights
+        // W2 += H.T * Out_Grad * LR
+        for(let i=0; i<this.hiddenSize; i++) {
+            for(let j=0; j<this.outputSize; j++) {
+                this.w2[i][j] += h1_act[0][i] * out_grad[j] * learningRate;
+            }
+        }
+        // B2 += Out_Grad * LR
+        for(let i=0; i<this.outputSize; i++) {
+            this.b2[0][i] += out_grad[i] * learningRate;
+        }
+        
+        // W1 += In.T * H_Grad * LR
+        for(let i=0; i<this.inputSize; i++) {
+            for(let j=0; j<this.hiddenSize; j++) {
+                this.w1[i][j] += inputs[i] * h_grad[j] * learningRate;
+            }
+        }
+        // B1 += H_Grad * LR
+        for(let i=0; i<this.hiddenSize; i++) {
+            this.b1[0][i] += h_grad[i] * learningRate;
+        }
+    }
 
     randomMatrix(rows, cols) {
         let matrix = [];
@@ -229,10 +289,18 @@ class Bike {
             const height = (600 - this.chassis.position.y) / 600;
             
             const inputs = [angle, angVel, vX, vY, height, ...rays];
-            const output = this.brain.predict(inputs);
             
-            gas = output[0]; // -1 to 1
-            lean = output[1]; // -1 to 1
+            // Record training data if human
+            if (this.isHuman) {
+                 trainingData.push({
+                     inputs: inputs,
+                     targets: [gas, lean]
+                 });
+            } else {
+                 const output = this.brain.predict(inputs);
+                 gas = output[0]; 
+                 lean = output[1];
+            }
         }
         
         // Apply Motor
@@ -397,8 +465,18 @@ let simulationSpeed = 1;
 let isHumanMode = false;
 let humanBike = null;
 let keys = {};
+let trainingData = []; // Store (inputs, targets)
 
 function init() {
+    // Global Error Handler to catch "Freezes"
+    window.onerror = function(msg, url, line, col, error) {
+        alert("Game Error: " + msg + "\nLine: " + line);
+        // Force reset
+        isHumanMode = false;
+        resetGeneration();
+        return false;
+    };
+
     // Engine setup
     engine = Engine.create();
     world = engine.world;
@@ -472,7 +550,25 @@ function toggleHumanMode() {
 }
 
 function respawnHuman() {
-    window.respawnTimeout = null; // Clear timeout flag immediately
+    window.respawnTimeout = null;
+    
+    // TRAIN ON DEATH
+    if (trainingData.length > 0 && humanBike) {
+        // Train the brain on the collected data
+        console.log("Training on " + trainingData.length + " frames...");
+        // Multiple epochs for better learning
+        for(let epoch=0; epoch<5; epoch++) {
+            for(let i=0; i<trainingData.length; i++) {
+                humanBike.brain.train(trainingData[i].inputs, trainingData[i].targets, 0.05);
+            }
+        }
+        console.log("Training complete!");
+        // Keep this brain for the next respawn?
+        // Ideally we want to export THIS brain.
+        // For now, we respawn a new bike with THIS brain.
+    }
+    const learnedBrain = (humanBike && trainingData.length > 0) ? humanBike.brain : null;
+    trainingData = []; // Clear data
     
     // Clear ALL physics bodies related to bikes
     if (humanBike) {
@@ -481,13 +577,12 @@ function respawnHuman() {
     population.forEach(b => b.removeFromWorld(world));
     population = [];
     
-    // Create fresh bike
-    humanBike = new Bike(150, 200, null, true);
+    // Create fresh bike with learned brain or new one
+    humanBike = new Bike(150, 200, learnedBrain, true);
     humanBike.addToWorld(world);
     population = [humanBike];
     
-    // Force physics update to ensure new body is registered
-    // Sometimes Matter.js needs a kick if state was weird
+    // Force physics update
     Engine.update(engine, 1000/60);
 }
 
@@ -610,6 +705,16 @@ function generateTerrain() {
 }
 
 function loop() {
+    try {
+        _loopContent();
+    } catch (e) {
+        console.error("Game Loop Crashed:", e);
+        // Try to recover
+        requestAnimationFrame(loop);
+    }
+}
+
+function _loopContent() {
     const canvas = document.getElementById('world');
     const ctx = canvas.getContext('2d');
     
