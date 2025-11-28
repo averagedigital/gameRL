@@ -767,15 +767,20 @@ function generateTerrain() {
     
     window.terrainVertices = []; // Store for raycasting
     
+    // SAFE ZONE: First 10 segments (500px) are FLAT
     for(let i=0; i<300; i++) {
         window.terrainVertices.push({x, y});
         x += 50;
-        y += (Math.random() - 0.5) * 60;
-        if (y > 800) y = 800;
-        if (y < 200) y = 200;
         
-        // Add hill
-        if (i > 10 && i % 20 < 10) y -= 40;
+        // Only start randomizing after safe zone
+        if (i > 10) {
+            y += (Math.random() - 0.5) * 60;
+            if (y > 800) y = 800;
+            if (y < 200) y = 200;
+            
+            // Add hill
+            if (i > 20 && i % 20 < 10) y -= 40;
+        }
         
         points.push({x, y});
     }
