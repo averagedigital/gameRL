@@ -569,8 +569,23 @@ function init() {
     };
 
     document.getElementById('human-mode').onclick = toggleHumanMode;
-    document.getElementById('export-btn').onclick = exportBestBrain;
-    document.getElementById('import-btn').onclick = importBrain;
+    
+    // Debugging and Robust Event Listeners
+    const exportBtn = document.getElementById('export-btn');
+    if(exportBtn) {
+        exportBtn.onclick = () => {
+            console.log("Export button clicked");
+            exportBestBrain();
+        };
+    } else { console.error("Export button not found!"); }
+
+    const importBtn = document.getElementById('import-btn');
+    if(importBtn) {
+        importBtn.onclick = () => {
+            console.log("Import button clicked");
+            importBrain();
+        };
+    } else { console.error("Import button not found!"); }
 }
 
 function toggleHumanMode() {
@@ -636,20 +651,46 @@ function respawnHuman() {
 }
 
 function exportBestBrain() {
+    console.log("Exporting...");
     // Find best AI from previous or current gen
     // Since we constantly mutate, let's grab the current survivor with max distance
     // Or ideally, we should store the 'champion' separately.
     // For now, let's grab the leader.
     if(isHumanMode) {
-        alert("Can't export human brain! Switch to AI mode.");
+        // If human mode, export HUMAN brain
+        if (humanBike) {
+             const data = JSON.stringify(humanBike.brain);
+             navigator.clipboard.writeText(data).then(() => {
+                alert("Human Brain copied! Share it!");
+            }).catch(err => {
+                console.error('Async: Could not copy text: ', err);
+                // Fallback
+                prompt("Copy this:", data);
+            });
+            return;
+        }
+    }
+    
+    if (population.length === 0) {
+        alert("No brains to copy!");
         return;
     }
     
     const best = population.reduce((prev, current) => (prev.distance > current.distance) ? prev : current);
     const data = JSON.stringify(best.brain);
-    navigator.clipboard.writeText(data).then(() => {
-        alert("Best Brain copied to clipboard! Paste this in Telegram.");
-    });
+    
+    // Modern Clipboard API requires secure context (HTTPS or localhost)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(data).then(() => {
+            alert("Best Brain copied to clipboard! Paste this in Telegram.");
+        }).catch(err => {
+            console.error('Async: Could not copy text: ', err);
+            prompt("Copy this manually (Ctrl+C):", data);
+        });
+    } else {
+        // Fallback for older browsers or non-secure contexts
+        prompt("Copy this manually (Ctrl+C):", data);
+    }
 }
 
 function importBrain() {
