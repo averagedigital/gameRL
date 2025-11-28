@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bike Evolution</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Import Matter.js for physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Import p5.js for easy rendering/math (optional, but vanilla canvas is fine too. Let's use vanilla for performance + matter.js render) -->
+    <!-- Actually, we'll write custom rendering on canvas to visualize rays and NN easily -->
+</head>
+<body>
+    <div id="container">
+        <canvas id="world"></canvas>
+        <div id="ui">
+            <h1>AI Bike Evolution</h1>
+            <div id="stats">
+                <p>Generation: <span id="gen">0</span></p>
+                <p>Alive: <span id="alive">0</span></p>
+                <p>Best Distance: <span id="best">0</span></p>
+            </div>
+            <div class="controls">
+                <button id="toggle-speed">Speed Up (x1)</button>
+                <button id="reset">Reset</button>
+                <button id="human-mode" style="background: #e67e22;">🎮 Play Human</button>
+            </div>
+            <div class="sharing" style="margin-top: 10px; border-top: 1px solid #ccc; padding-top: 10px;">
+                <p style="font-size: 12px; margin-bottom: 5px;">Share your AI:</p>
+                <button id="export-btn" style="background: #27ae60; font-size: 12px;">📋 Copy Best Brain</button>
+                <button id="import-btn" style="background: #8e44ad; font-size: 12px;">📥 Paste Brain</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
