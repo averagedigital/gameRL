@@ -845,15 +845,15 @@ function _loopContent() {
         // Only progress frame count if not human
         if (!isHumanMode) {
              frameCount++;
-             // Restart only if ALL are dead OR time is up
-             if (aliveCount === 0 || frameCount > maxFrames) {
-                // Ensure we don't restart instantly if physics glitched for 1 frame
-                // Wait at least a few frames? No, aliveCount 0 is usually reliable.
-                // But let's log why we restarted
-                // console.log("Gen End. Reason: " + (aliveCount===0 ? "All Dead" : "Timeout"));
-                nextGeneration();
-                break;
-            }
+             
+             // Wait for at least 60 frames (1 sec) before checking death to allow spawn to settle
+             if (frameCount > 60) {
+                 // Restart only if ALL are dead OR time is up
+                 if (aliveCount === 0 || frameCount > maxFrames) {
+                    nextGeneration();
+                    break;
+                }
+             }
         }
         
         // Timeout check (optional)
