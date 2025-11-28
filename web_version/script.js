@@ -366,14 +366,14 @@ class Bike {
             // Matter.js clockwise is positive. So forward is clockwise?
             // Let's try setting angular velocity target
             let speed = MOTOR_SPEED;
-            if(this.isHuman) speed *= 2; // Human needs more power
+            // Equalize Physics: Everyone gets the Human Boost (x2)
+            speed *= 2; 
             Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity + gas * speed);
         } else {
              // BRAKING / FRICTION when no gas
              // If human and no input, dampen wheel spin
-             if (this.isHuman) {
-                 Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity * 0.9);
-             }
+             // Apply to everyone for consistency
+             Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity * 0.9);
         }
         
         // Detect if airborne (simple check: wheels not colliding?)
@@ -386,13 +386,14 @@ class Bike {
         
         // Apply Lean Torque (Rotation)
         // Reduced power for smoother control (was 0.2, causing instant flips)
-        let leanPower = 0.05;
-        if(this.isHuman) leanPower = 0.08; // Just enough to rotate, but not flip instantly
+        // Equalize Physics: Everyone gets 0.08
+        let leanPower = 0.08;
         
         // "Space Control" - Air Strafe?
         // If user wants "Left/Right" control in space, maybe they mean moving the bike horizontally in air?
         // Let's add a small horizontal force for A/D in addition to rotation.
-        if (this.isHuman && lean !== 0) {
+        // Apply to EVERYONE if they try to lean
+        if (lean !== 0) {
             // Apply slight horizontal push
             Body.applyForce(this.chassis, this.chassis.position, {x: lean * 0.002, y: 0});
         }
