@@ -853,12 +853,15 @@ function createPopulation() {
     // Ghost Mode is ON: Spawn all at SAME spot (150)
     // Y Position: 200 is too low? Terrain starts at Y=500 (screen coords, where 0 is top).
     // Let's spawn them HIGH above the runway to guarantee drop.
-    // Runway is at Y=500. Spawn at Y=300 (above).
+    // Runway starts at X=0 and goes right. Spawn at X=150 is FINE if terrain exists.
+    // But maybe terrain isn't rendering fast enough? No.
+    // Let's just spawn them at X=300 to be deeper into the safe zone.
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
         // Spacing: 0 (Ghost Mode)
         // Spawn Y: 300 (Safety Drop)
-        const b = new Bike(150, 300, brain);
+        // Spawn X: 300 (Safety Forward)
+        const b = new Bike(300, 300, brain);
         b.addToWorld(world);
         population.push(b);
     }
@@ -927,6 +930,7 @@ function generateTerrain() {
     window.terrainVertices = []; // Store for raycasting
     
     // SAFE ZONE: First 20 segments (1000px) are FLAT (Incubator)
+    // Start generating from X=0 so spawn at X=150 is covered.
     for(let i=0; i<300; i++) {
         window.terrainVertices.push({x, y});
         x += 50;
