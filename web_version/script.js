@@ -13,8 +13,8 @@ const MOTOR_SPEED = 0.5; // Base speed, human will have multiplier
 const LEAN_SPEED = 0.1;
 
 // GA Config
-const POPULATION_SIZE = 2;
-const MUTATION_RATE = 0.2; // Higher mutation for small pop
+const POPULATION_SIZE = 12; // Increased from 2 for better learning
+const MUTATION_RATE = 0.1; // Back to standard rate
 const RAY_COUNT = 5;
 const RAY_LENGTH = 300;
 const RAY_SPREAD = Math.PI / 2;
