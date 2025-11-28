@@ -716,32 +716,46 @@ function importBrain() {
         resetGeneration();
         
         // Setup new generation
-        const newBrains = [];
-        // 1. The imported brain (Exact copy) - Champion
+        // Critical: We want this brain to be the BASE for everyone.
+        
+        // 1. Create the champion template
         const champion = new NeuralNetwork(5 + RAY_COUNT, 8, 2);
         champion.w1 = json.w1; champion.b1 = json.b1; 
         champion.w2 = json.w2; champion.b2 = json.b2;
-        newBrains.push(champion);
         
-        // 2. Mutated clones of the imported brain
+        const newBrains = [];
+        
+        // 2. Clone it for everyone!
+        // First one is exact copy (Elitism)
+        newBrains.push(champion.copy());
+        
+        // Rest are MUTATED versions so evolution continues
+        // If we just copy exact, they will all do the same thing and die together.
+        // We want to "continue evolution from this save point".
         for(let i=1; i<POPULATION_SIZE; i++) {
             const clone = champion.copy();
             clone.mutate(MUTATION_RATE);
             newBrains.push(clone);
         }
         
+        // Force inject these brains into the next generation spawn logic
         window.nextGenBrains = newBrains;
         
-        // Re-create physics world
+        // Kill current population and respawn immediately with new brains
         population.forEach(b => b.removeFromWorld(world));
         population = [];
-        createPopulation();
-        generateTerrain(); // Optional: new terrain for new brain
         
-        alert("Brain imported! Starting Evolution Gen 0 with this brain.");
+        createPopulation();
+        
+        // Don't regenerate terrain? Or do? 
+        // Maybe keep terrain so user can see if it beats the current level.
+        // But usually fairness requires new terrain. Let's keep it consistent.
+        generateTerrain(); 
+        
+        alert("Brain imported successfully! The population has been replaced.");
         
     } catch(e) {
-        alert("Invalid Brain string!");
+        alert("Invalid Brain string! Check console.");
         console.error(e);
     }
 }
