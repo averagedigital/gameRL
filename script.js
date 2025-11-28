@@ -204,48 +204,27 @@ class Bike {
         this.alive = true;
         this.distance = 0;
         
-        // Collision Filter Logic for Ghost Mode:
-        // We want:
-        // 1. Bike parts (chassis, wheels) colliding with TERRAIN.
-        // 2. Bike parts NOT colliding with OTHER bikes.
-        // 3. Bike parts NOT colliding with EACH OTHER (self-collision).
-        
-        // Strategy:
-        // Use 'category' and 'mask' for selective collision.
-        // Use 'group' for self-collision exemption.
+        // Collision Filter:
+        // We want GHOST MODE (No bike-bike collision).
+        // 1. Bike parts MUST collide with TERRAIN.
+        // 2. Bike parts MUST NOT collide with OTHER bikes.
+        // 3. Bike parts MUST NOT collide with EACH OTHER (self).
         
         const CATEGORY_BIKE = 0x0002;
         const CATEGORY_TERRAIN = 0x0001;
         
-        // Each bike instance gets a UNIQUE negative group to prevent self-collision.
-        // However, if we want to prevent BIKE-BIKE collision, we must ensure their MASKS do not include CATEGORY_BIKE.
+        // To guarantee NO bike-bike collision:
+        // Mask must NOT include CATEGORY_BIKE.
         
-        // Problem: Matter.js 'group' overrides category/mask if non-zero.
-        // "If the two bodies have the same non-zero value for collisionFilter.group, they will always collide if the value is positive, and they will never collide if the value is negative."
-        // "If the two bodies have different values for collisionFilter.group, or if one of them is zero, then the collisionFilter.category and collisionFilter.mask rules are used."
+        // To guarantee NO self-collision:
+        // Use a unique negative group per bike.
         
-        // So for GHOST MODE (no bike-bike collision):
-        // 1. Give every bike a UNIQUE negative group? No, that only stops self-collision.
-        // 2. If we give ALL bikes the SAME negative group, they won't collide with each other!
-        //    BUT then wheels won't collide with chassis? Yes, parts of same bike won't collide.
-        //    AND parts of DIFFERENT bikes won't collide.
-        //    PERFECT for Ghost Mode!
-        
-        // Wait, if all have same negative group, they don't collide with terrain?
-        // No, terrain usually has group 0 (default).
-        // "If different values... category/mask used."
-        // So Bike (Group -1) vs Terrain (Group 0) -> Check Mask.
-        
-        // Solution:
-        // ALL bikes get the SAME negative group constant.
-        // This disables collision between ANY bike parts (self or other).
-        
-        const GHOST_GROUP = -1; // Constant for all bikes
+        const myGroup = Body.nextGroup(true); // Unique negative group
         
         const filter = {
-            group: GHOST_GROUP,
+            group: myGroup, 
             category: CATEGORY_BIKE,
-            mask: CATEGORY_TERRAIN // Only collide with terrain (which is default category 1)
+            mask: CATEGORY_TERRAIN // STRICTLY ONLY TERRAIN
         };
 
         // Chassis
