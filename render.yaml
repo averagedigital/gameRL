@@ -1,8 +1,7 @@
 services:
   - type: web
-    name: game-rl-web
+    name: game-rl
     env: static
-    staticPublishPath: ./web_version
+    staticPublishPath: .
     buildCommand: null
     startCommand: null
-
