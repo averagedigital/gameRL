@@ -1004,6 +1004,7 @@ function _loopContent() {
 function nextGeneration() {
     generation++;
     document.getElementById('gen').innerText = generation;
+    frameCount = 0; // Reset timer
     
     // Sort by fitness
     population.sort((a, b) => b.fitness - a.fitness);
