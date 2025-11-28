@@ -344,8 +344,9 @@ class Bike {
         // Let's just boost the lean power globally for humans, it's fun.
         
         // Apply Lean Torque (Rotation)
+        // Reduced power for smoother control (was 0.2, causing instant flips)
         let leanPower = 0.05;
-        if(this.isHuman) leanPower = 0.2; // Much snappier (was ~0.15 effectively before, now 0.2 base)
+        if(this.isHuman) leanPower = 0.08; // Just enough to rotate, but not flip instantly
         
         // "Space Control" - Air Strafe?
         // If user wants "Left/Right" control in space, maybe they mean moving the bike horizontally in air?
