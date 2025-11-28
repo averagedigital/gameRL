@@ -523,7 +523,58 @@ let trainingData = []; // Store (inputs, targets)
 let frameCount = 0;
 let maxFrames = 60 * 120; // 120 seconds max per gen (increased from 30)
 
+// API Config
+// IMPORTANT: You must replace this with your actual Render Backend URL after deployment
+// For now, we can try to guess it or ask user to set it.
+// Or use relative path if we serve both from same origin (which we don't in this setup).
+const API_URL = "https://game-rl-api.onrender.com"; // Default name from render.yaml
+
+async function fetchGlobalBrain() {
+    try {
+        console.log("Fetching global brain...");
+        const response = await fetch(`${API_URL}/get_brain`);
+        const data = await response.json();
+        
+        if (data.brain) {
+            console.log(`Global Brain Found! Fitness: ${data.fitness}`);
+            importBrainLogic(JSON.stringify(data.brain));
+            document.getElementById('best').innerText = `Global Record: ${Math.floor(data.fitness)}`;
+        }
+    } catch (e) {
+        console.error("Failed to fetch global brain:", e);
+    }
+}
+
+async function uploadGlobalBrain(brain, fitness) {
+    try {
+        // Only upload if it's really good? 
+        // For now, let backend decide (it checks fitness > current).
+        const payload = {
+            fitness: fitness,
+            brain: brain
+        };
+        
+        console.log(`Uploading candidate brain (Fitness: ${fitness})...`);
+        const response = await fetch(`${API_URL}/post_brain`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const res = await response.json();
+        console.log("Upload result:", res);
+        if (res.status === "updated") {
+            alert(`🎉 NEW GLOBAL RECORD! ${Math.floor(fitness)} meters!`);
+        }
+    } catch (e) {
+        console.error("Failed to upload brain:", e);
+    }
+}
+
 function init() {
+    // ... existing init code ...
     // Global Error Handler to catch "Freezes"
     window.onerror = function(msg, url, line, col, error) {
         alert("Game Error: " + msg + "\nLine: " + line);
@@ -556,13 +607,17 @@ function init() {
     // Generate Terrain
     generateTerrain();
     
+    // Initial Fetch of Global Brain
+    fetchGlobalBrain();
+    
     // Create Population (Spawn one by one)
     createPopulation();
     
     // Start loop
     requestAnimationFrame(loop);
     
-    // UI Events
+    // ... UI Events ...
+
     document.getElementById('toggle-speed').onclick = () => {
         if(isHumanMode) return; // No speedup in human mode
         simulationSpeed = simulationSpeed === 1 ? 5 : 1;
@@ -688,54 +743,49 @@ function importBrain() {
     // Custom Modal Input
     const data = prompt("Paste the Brain code here:");
     if(!data) return;
-    
+    importBrainLogic(data);
+}
+
+function importBrainLogic(data) {
     try {
         const json = JSON.parse(data);
         // Create a new population based on this brain
         resetGeneration();
         
         // Setup new generation
-        // Critical: We want this brain to be the BASE for everyone.
-        
-        // 1. Create the champion template
         const champion = new NeuralNetwork(5 + RAY_COUNT, 8, 2);
-        champion.w1 = json.w1; champion.b1 = json.b1; 
-        champion.w2 = json.w2; champion.b2 = json.b2;
+        // Handle both full payload (from API) and direct brain dump (from Copy)
+        // API sends {brain: {w1...}}, Copy sends {w1...} directly.
+        // But our importBrainLogic receives the brain JSON string directly usually.
+        // Let's assume json IS the brain object.
+        
+        if (json.w1) {
+             champion.w1 = json.w1; champion.b1 = json.b1; 
+             champion.w2 = json.w2; champion.b2 = json.b2;
+        } else if (json.brain && json.brain.w1) {
+             champion.w1 = json.brain.w1; champion.b1 = json.brain.b1; 
+             champion.w2 = json.brain.w2; champion.b2 = json.brain.b2;
+        }
         
         const newBrains = [];
-        
-        // 2. Clone it for everyone!
-        // First one is exact copy (Elitism)
         newBrains.push(champion.copy());
         
-        // Rest are MUTATED versions so evolution continues
-        // If we just copy exact, they will all do the same thing and die together.
-        // We want to "continue evolution from this save point".
         for(let i=1; i<POPULATION_SIZE; i++) {
             const clone = champion.copy();
             clone.mutate(MUTATION_RATE);
             newBrains.push(clone);
         }
         
-        // Force inject these brains into the next generation spawn logic
         window.nextGenBrains = newBrains;
-        
-        // Kill current population and respawn immediately with new brains
         population.forEach(b => b.removeFromWorld(world));
         population = [];
         
         createPopulation();
-        
-        // Don't regenerate terrain? Or do? 
-        // Maybe keep terrain so user can see if it beats the current level.
-        // But usually fairness requires new terrain. Let's keep it consistent.
         generateTerrain(); 
         
-        alert("Brain imported successfully! The population has been replaced.");
-        
+        // alert("Brain imported!"); 
     } catch(e) {
-        alert("Invalid Brain string! Check console.");
-        console.error(e);
+        console.error("Import failed", e);
     }
 }
 
@@ -1121,6 +1171,13 @@ function nextGeneration() {
     
     // Sort by fitness
     population.sort((a, b) => b.fitness - a.fitness);
+    
+    // GLOBAL EVOLUTION: Check if best bike beat the world record?
+    const bestBike = population[0];
+    if (bestBike && bestBike.distance > 800) { // Only upload decent runs (>800m) to avoid spam
+         // Backend will filter if it's not a new record
+         uploadGlobalBrain(bestBike.brain, bestBike.distance);
+    }
     
     const newBrains = [];
     
