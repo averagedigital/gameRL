@@ -473,11 +473,23 @@ function toggleHumanMode() {
 }
 
 function respawnHuman() {
-    if (humanBike) humanBike.removeFromWorld(world);
+    window.respawnTimeout = null; // Clear timeout flag immediately
+    
+    // Clear ALL physics bodies related to bikes
+    if (humanBike) {
+        humanBike.removeFromWorld(world);
+    }
+    population.forEach(b => b.removeFromWorld(world));
+    population = [];
+    
+    // Create fresh bike
     humanBike = new Bike(150, 200, null, true);
     humanBike.addToWorld(world);
     population = [humanBike];
-    window.respawnTimeout = null; // Clear any pending timeout
+    
+    // Force physics update to ensure new body is registered
+    // Sometimes Matter.js needs a kick if state was weird
+    Engine.update(engine, 1000/60);
 }
 
 function exportBestBrain() {
@@ -738,11 +750,14 @@ function loop() {
     }
     
     // Human Mode Respawn Logic Check
-    if (isHumanMode && humanBike && !humanBike.alive) {
-        if (!window.respawnTimeout) {
-             window.respawnTimeout = setTimeout(() => {
-                respawnHuman();
-            }, 2000);
+    if (isHumanMode) {
+        // If human bike is gone or dead, trigger respawn sequence
+        if (!humanBike || !humanBike.alive) {
+            if (!window.respawnTimeout) {
+                 window.respawnTimeout = setTimeout(() => {
+                    respawnHuman();
+                }, 2000);
+            }
         }
     }
 
