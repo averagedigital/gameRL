@@ -209,15 +209,14 @@ class Bike {
         const rays = this.castRays(terrainBodies);
 
         if (this.isHuman) {
-            // Human Control
-            // Swapped Controls as requested:
-            // Arrow Down / S = Gas (Forward)
-            // Arrow Up / W = Brake/Back
-            // Arrow Right / D = Lean Forward
-            // Arrow Left / A = Lean Back
+            // Human Control - Standard WASD / Arrows
+            // W / Up = Gas (Forward)
+            // S / Down = Brake (Reverse)
+            // A / Left = Lean Back (Rotate CCW)
+            // D / Right = Lean Forward (Rotate CW)
             
-            if (keys['ArrowDown'] || keys['KeyS']) gas = 1;
-            if (keys['ArrowUp'] || keys['KeyW']) gas = -1;
+            if (keys['ArrowUp'] || keys['KeyW']) gas = 1;
+            if (keys['ArrowDown'] || keys['KeyS']) gas = -1;
             if (keys['ArrowRight'] || keys['KeyD']) lean = 1;   // Lean forward
             if (keys['ArrowLeft'] || keys['KeyA']) lean = -1; // Lean back
         } else {
