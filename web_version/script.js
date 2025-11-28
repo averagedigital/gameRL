@@ -204,38 +204,53 @@ class Bike {
         this.alive = true;
         this.distance = 0;
         
-        // Collision Filter:
-        // category 0x0002 (Bike)
-        // mask    0x0001 (Terrain) - IGNORE other bikes (Ghost Mode)
-        const bikeCategory = 0x0002;
-        const terrainCategory = 0x0001;
+        // Collision Filter Logic for Ghost Mode:
+        // We want:
+        // 1. Bike parts (chassis, wheels) colliding with TERRAIN.
+        // 2. Bike parts NOT colliding with OTHER bikes.
+        // 3. Bike parts NOT colliding with EACH OTHER (self-collision).
         
-        // Parts of the SAME bike must not collide (use group)
+        // Strategy:
+        // Use 'category' and 'mask' for selective collision.
+        // Use 'group' for self-collision exemption.
+        
+        const CATEGORY_BIKE = 0x0002;
+        const CATEGORY_TERRAIN = 0x0001;
+        
+        // Each bike instance gets a UNIQUE negative group to prevent self-collision.
+        // However, if we want to prevent BIKE-BIKE collision, we must ensure their MASKS do not include CATEGORY_BIKE.
+        
+        // Problem: Matter.js 'group' overrides category/mask if non-zero.
+        // "If the two bodies have the same non-zero value for collisionFilter.group, they will always collide if the value is positive, and they will never collide if the value is negative."
+        // "If the two bodies have different values for collisionFilter.group, or if one of them is zero, then the collisionFilter.category and collisionFilter.mask rules are used."
+        
+        // So for GHOST MODE (no bike-bike collision):
+        // 1. Give every bike a UNIQUE negative group? No, that only stops self-collision.
+        // 2. If we give ALL bikes the SAME negative group, they won't collide with each other!
+        //    BUT then wheels won't collide with chassis? Yes, parts of same bike won't collide.
+        //    AND parts of DIFFERENT bikes won't collide.
+        //    PERFECT for Ghost Mode!
+        
+        // Wait, if all have same negative group, they don't collide with terrain?
+        // No, terrain usually has group 0 (default).
+        // "If different values... category/mask used."
+        // So Bike (Group -1) vs Terrain (Group 0) -> Check Mask.
+        
+        // Solution:
+        // ALL bikes get the SAME negative group constant.
+        // This disables collision between ANY bike parts (self or other).
+        
+        const GHOST_GROUP = -1; // Constant for all bikes
         
         const filter = {
-            category: bikeCategory,
-            mask: terrainCategory, // Collide ONLY with terrain
-            group: 0 
-        };
-        
-        // We need unique group per bike instance to prevent self-collision but allow bike-bike collision?
-        // NO, we WANT Ghost Mode now. So we DON'T want bike-bike collision.
-        // So just set mask = terrainCategory.
-        // But we still need to prevent self-collision (wheels touching chassis).
-        // Standard negative group per bike handles self-collision.
-        
-        const myGroup = Body.nextGroup(true); // true means non-colliding group
-        
-        // Re-override filter for self-collision prevention
-        const finalFilter = {
-             group: myGroup,
-             category: bikeCategory,
-             mask: terrainCategory // ONLY TERRAIN
+            group: GHOST_GROUP,
+            category: CATEGORY_BIKE,
+            mask: CATEGORY_TERRAIN // Only collide with terrain (which is default category 1)
         };
 
         // Chassis
         this.chassis = Bodies.rectangle(x, y, CHASSIS_WIDTH, CHASSIS_HEIGHT, { 
-            collisionFilter: finalFilter,
+            collisionFilter: filter,
             density: 0.04,
             friction: 0.5,
             label: 'chassis'
@@ -243,14 +258,14 @@ class Bike {
         
         // Wheels
         this.wheelBack = Bodies.circle(x - 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: finalFilter,
+            collisionFilter: filter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
         });
         
         this.wheelFront = Bodies.circle(x + 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: finalFilter,
+            collisionFilter: filter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
