@@ -12,7 +12,7 @@ const WHEEL_RADIUS = 25;
 const MOTOR_SPEED = 0.3;
 
 // GA Config
-const POPULATION_SIZE = 20;
+const POPULATION_SIZE = 10;
 const MUTATION_RATE = 0.1;
 const RAY_COUNT = 5;
 const RAY_LENGTH = 300;
@@ -500,7 +500,7 @@ function init() {
     // Generate Terrain
     generateTerrain();
     
-    // Create Population
+    // Create Population (Spawn one by one)
     createPopulation();
     
     // Start loop
@@ -631,11 +631,114 @@ function importBrain() {
 }
 
 function createPopulation() {
+    // If we have existing brains to carry over (from nextGeneration), use them
+    // Otherwise create new ones
+    // We want to spawn them staggered
+    
+    // Clear array logic handled by caller, but we need to ensure clean state
+    
+    // Helper to spawn one bike
+    const spawnBike = (index, brain = null) => {
+        if (index >= POPULATION_SIZE) return;
+        
+        const b = new Bike(150, 200, brain);
+        b.addToWorld(world);
+        population.push(b);
+        
+        // Schedule next spawn
+        setTimeout(() => {
+            // Check if we are still in same generation/state
+            if (!isHumanMode && population.length < POPULATION_SIZE) {
+               // Next brain?
+               // The logic here is tricky because 'population' array is growing.
+               // We need the LIST of brains to be ready beforehand.
+            }
+        }, 500); 
+    };
+
+    // Correct approach:
+    // 1. Create all bike objects but DON'T add to world immediately? 
+    //    No, we want them to physically appear later.
+    // 2. Or just create them all at once but at different X positions?
+    //    "Spawn 10 AI in a row" - easiest is different X start.
+    //    But user said "spawn by turn" -> delay.
+    
+    // Let's implement stagger spawn using a simple interval loop in the main loop or a recursive timeout
+    // BUT we need to pass the BRAINS correctly.
+    
+    // Let's change createPopulation to take an optional array of brains
+    // And spawning happens instantly but we place them with offset? 
+    // "Успели друг от друга уехать" implies time or space.
+    // Space is easier and less buggy than async spawning which messes up "Generation End" checks.
+    
+    // Solution: Spawn all at once but with X spacing.
+    // Bike 1: x=150
+    // Bike 2: x=100
+    // Bike 3: x=50...
+    
+    // Or if user really wants DELAY (time):
+    // We must handle the "End Generation" check carefully (don't end if spawning is still happening).
+    
+    // Let's do SPACE spacing first, it's robust.
     for(let i=0; i<POPULATION_SIZE; i++) {
-        const b = new Bike(150, 200);
+        const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
+        // Spacing: 80px between bikes
+        const b = new Bike(150 - (i * 100), 200, brain);
         b.addToWorld(world);
         population.push(b);
     }
+    window.nextGenBrains = null; // Clear buffer
+}
+
+function nextGeneration() {
+    generation++;
+    document.getElementById('gen').innerText = generation;
+    
+    // Sort by fitness
+    population.sort((a, b) => b.fitness - a.fitness);
+    
+    const newBrains = [];
+    
+    // Elitism (Top 2)
+    for(let i=0; i<2; i++) {
+        if(population[i]) newBrains.push(population[i].brain.copy());
+    }
+    
+    // Selection
+    while(newBrains.length < POPULATION_SIZE) {
+        // Tournament
+        let p1 = population[Math.floor(Math.random() * population.length)];
+        let p2 = population[Math.floor(Math.random() * population.length)];
+        // Safety check
+        if(!p1) p1 = population[0];
+        if(!p2) p2 = population[0];
+        
+        let parent = (p1.fitness > p2.fitness) ? p1 : p2;
+        
+        const childBrain = parent.brain.copy();
+        childBrain.mutate(MUTATION_RATE);
+        newBrains.push(childBrain);
+    }
+    
+    // Store brains for next spawn
+    window.nextGenBrains = newBrains;
+    
+    // Cleanup old physics bodies
+    population.forEach(b => b.removeFromWorld(world));
+    population = [];
+    
+    createPopulation();
+    
+    // Regenerate terrain
+    generateTerrain();
+}
+
+function resetGeneration() {
+    population.forEach(b => b.removeFromWorld(world));
+    population = [];
+    window.nextGenBrains = null;
+    createPopulation();
+    generateTerrain();
 }
 
 function generateTerrain() {
@@ -875,43 +978,47 @@ function nextGeneration() {
     // Sort by fitness
     population.sort((a, b) => b.fitness - a.fitness);
     
-    const newPop = [];
+    const newBrains = [];
     
-    // Elitism
+    // Elitism (Top 2)
     for(let i=0; i<2; i++) {
-        const brain = population[i].brain.copy();
-        const b = new Bike(150, 200, brain);
-        newPop.push(b);
+        if(population[i]) newBrains.push(population[i].brain.copy());
     }
     
     // Selection
-    while(newPop.length < POPULATION_SIZE) {
-        const p1 = population[Math.floor(Math.random() * 10)]; // Top 10
-        const childBrain = p1.brain.copy();
+    while(newBrains.length < POPULATION_SIZE) {
+        // Tournament
+        let p1 = population[Math.floor(Math.random() * population.length)];
+        let p2 = population[Math.floor(Math.random() * population.length)];
+        // Safety check
+        if(!p1) p1 = population[0];
+        if(!p2) p2 = population[0];
+        
+        let parent = (p1.fitness > p2.fitness) ? p1 : p2;
+        
+        const childBrain = parent.brain.copy();
         childBrain.mutate(MUTATION_RATE);
-        newPop.push(new Bike(150, 200, childBrain));
+        newBrains.push(childBrain);
     }
+    
+    // Store brains for next spawn
+    window.nextGenBrains = newBrains;
     
     // Cleanup old physics bodies
     population.forEach(b => b.removeFromWorld(world));
+    population = [];
     
-    population = newPop;
-    population.forEach(b => b.addToWorld(world));
+    createPopulation();
     
-    // Regenerate terrain slightly? Or keep same?
-    // Let's keep same for fairness, or regenerate to prevent overfitting.
-    // Regenerate for robustness:
+    // Regenerate terrain
     generateTerrain();
 }
 
 function resetGeneration() {
     population.forEach(b => b.removeFromWorld(world));
     population = [];
-    for(let i=0; i<POPULATION_SIZE; i++) {
-        const b = new Bike(150, 200);
-        b.addToWorld(world);
-        population.push(b);
-    }
+    window.nextGenBrains = null;
+    createPopulation();
     generateTerrain();
 }
 
