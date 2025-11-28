@@ -206,23 +206,47 @@ class Bike {
         
         // Collision Filter:
         // category 0x0002 (Bike)
-        // mask    0x0001 (Terrain only) - ignore other bikes
+        // mask    0x0001 (Terrain) | 0x0002 (Other Bikes) - Enable collision!
         const bikeCategory = 0x0002;
         const terrainCategory = 0x0001;
         
         // Parts of the SAME bike must not collide (use group)
-        // Actually, if we use category/mask, we can just say "Mask = Terrain".
-        // They won't collide with each other if they don't include 0x0002 in mask.
+        // Different bikes collide if we include bikeCategory in mask
         
         const filter = {
             category: bikeCategory,
-            mask: terrainCategory, // Collide ONLY with terrain
-            group: 0 // No group needed if using precise categories
+            mask: terrainCategory | bikeCategory, // Collide with terrain AND other bikes
+            group: 0 // Matter.js groups: same non-zero group index don't collide. We want distinct bikes to collide.
+            // Actually, if we use group=0, they follow category/mask rules.
+            // But parts of the SAME bike shouldn't collide.
+            // We usually put parts of same bike in same negative group to prevent self-collision.
         };
+        // We need unique group per bike instance to prevent self-collision but allow bike-bike collision
+        // Or we rely on mask.
+        // If we set mask to include bikeCategory, wheelBack will collide with chassis of SAME bike?
+        // Yes, unless we use groups.
         
+        // Correct way:
+        // Use a unique negative group for each bike instance to prevent self-collision.
+        // But allow collisions with everything else (terrain, other positive groups).
+        
+        // Since we want them to collide with EACH OTHER, they must have different groups?
+        // No, Matter.js: "Bodies with the same negative group will NOT collide."
+        // So each bike needs its OWN negative group.
+        
+        // Let's generate a random negative group ID
+        const myGroup = Body.nextGroup(true); // true means non-colliding group
+        
+        // Re-override filter for self-collision prevention
+        const finalFilter = {
+             group: myGroup,
+             category: bikeCategory,
+             mask: terrainCategory | bikeCategory
+        };
+
         // Chassis
         this.chassis = Bodies.rectangle(x, y, CHASSIS_WIDTH, CHASSIS_HEIGHT, { 
-            collisionFilter: filter,
+            collisionFilter: finalFilter,
             density: 0.04,
             friction: 0.5,
             label: 'chassis'
@@ -230,14 +254,14 @@ class Bike {
         
         // Wheels
         this.wheelBack = Bodies.circle(x - 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: filter,
+            collisionFilter: finalFilter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
         });
         
         this.wheelFront = Bodies.circle(x + 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: filter,
+            collisionFilter: finalFilter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
@@ -735,12 +759,12 @@ function createPopulation() {
     // Bike 2: x=100
     // Bike 3: x=50...
     
-    // Since collisions are disabled, we can spawn them at same spot
+    // Stagger them so they don't collide on spawn
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
-        // Spacing: 80px between bikes
-        // HUMAN SPAWN is at (150, 200). Let's use EXACTLY that for everyone.
-        const b = new Bike(150, 200, brain);
+        // Spacing: 200px between bikes (was 0)
+        // Start at 150, then 150-200, etc.
+        const b = new Bike(150 - (i * 200), 200, brain);
         b.addToWorld(world);
         population.push(b);
     }
