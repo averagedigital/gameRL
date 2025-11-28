@@ -509,7 +509,7 @@ let humanBike = null;
 let keys = {};
 let trainingData = []; // Store (inputs, targets)
 let frameCount = 0;
-let maxFrames = 60 * 30; // 30 seconds max per gen
+let maxFrames = 60 * 120; // 120 seconds max per gen (increased from 30)
 
 function init() {
     // Global Error Handler to catch "Freezes"
@@ -844,7 +844,12 @@ function _loopContent() {
         // Only progress frame count if not human
         if (!isHumanMode) {
              frameCount++;
+             // Restart only if ALL are dead OR time is up
              if (aliveCount === 0 || frameCount > maxFrames) {
+                // Ensure we don't restart instantly if physics glitched for 1 frame
+                // Wait at least a few frames? No, aliveCount 0 is usually reliable.
+                // But let's log why we restarted
+                // console.log("Gen End. Reason: " + (aliveCount===0 ? "All Dead" : "Timeout"));
                 nextGeneration();
                 break;
             }
