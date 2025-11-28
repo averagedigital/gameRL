@@ -363,7 +363,11 @@ class Bike {
         this.fitness = this.distance;
         
         // Death check
-        if (Math.abs(this.chassis.angle) > Math.PI / 1.5) {
+        // Relaxed angle: was PI/1.5 (~120 deg). Let's allow almost full flip if in air?
+        // No, touching ground with head is bad.
+        // Let's check collision with ground instead of just angle?
+        // Simple angle check is robust. Let's make it PI/1.3 (~138 degrees)
+        if (Math.abs(this.chassis.angle) > Math.PI / 1.3) {
              this.alive = false;
         }
     }
@@ -694,6 +698,7 @@ function createPopulation() {
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
         // Spacing: 80px between bikes
+        // HUMAN SPAWN is at (150, 200). Let's use EXACTLY that for everyone.
         const b = new Bike(150, 200, brain);
         b.addToWorld(world);
         population.push(b);
