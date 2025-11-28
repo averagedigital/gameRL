@@ -327,6 +327,12 @@ class Bike {
             let speed = MOTOR_SPEED;
             if(this.isHuman) speed *= 2; // Human needs more power
             Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity + gas * speed);
+        } else {
+             // BRAKING / FRICTION when no gas
+             // If human and no input, dampen wheel spin
+             if (this.isHuman) {
+                 Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity * 0.9);
+             }
         }
         
         // Detect if airborne (simple check: wheels not colliding?)
@@ -502,6 +508,8 @@ let isHumanMode = false;
 let humanBike = null;
 let keys = {};
 let trainingData = []; // Store (inputs, targets)
+let frameCount = 0;
+let maxFrames = 60 * 30; // 30 seconds max per gen
 
 function init() {
     // Global Error Handler to catch "Freezes"
@@ -833,9 +841,13 @@ function _loopContent() {
             if(bike.alive) aliveCount++;
         });
         
-        if (aliveCount === 0) {
-            nextGeneration();
-            break;
+        // Only progress frame count if not human
+        if (!isHumanMode) {
+             frameCount++;
+             if (aliveCount === 0 || frameCount > maxFrames) {
+                nextGeneration();
+                break;
+            }
         }
         
         // Timeout check (optional)
