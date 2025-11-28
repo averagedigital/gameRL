@@ -329,9 +329,26 @@ class Bike {
             Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity + gas * speed);
         }
         
-        // Apply Lean Torque
+        // Detect if airborne (simple check: wheels not colliding?)
+        // Matter.js collision check is expensive to do properly every frame without events.
+        // Heuristic: check if wheels have very low Y velocity change or vertical support?
+        // Easier: Just give "Air Control" always, physics will dampen it on ground.
+        // But we want EXTRA power in air.
+        
+        // Let's just boost the lean power globally for humans, it's fun.
+        
+        // Apply Lean Torque (Rotation)
         let leanPower = 0.05;
-        if(this.isHuman) leanPower *= 3; // Human needs more snappy lean
+        if(this.isHuman) leanPower = 0.2; // Much snappier (was ~0.15 effectively before, now 0.2 base)
+        
+        // "Space Control" - Air Strafe?
+        // If user wants "Left/Right" control in space, maybe they mean moving the bike horizontally in air?
+        // Let's add a small horizontal force for A/D in addition to rotation.
+        if (this.isHuman && lean !== 0) {
+            // Apply slight horizontal push
+            Body.applyForce(this.chassis, this.chassis.position, {x: lean * 0.002, y: 0});
+        }
+
         Body.setAngularVelocity(this.chassis, this.chassis.angularVelocity + lean * leanPower);
         
         // Update Fitness
