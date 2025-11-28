@@ -802,11 +802,17 @@ function createPopulation() {
     // Bike 2: x=100
     // Bike 3: x=50...
     
-    // Ghost Mode is ON: Spawn all at SAME spot (150)
+    // Ghost Mode is ON, but physics engine might still explode if constraints overlap perfectly?
+    // Or maybe numeric instability.
+    // Let's stagger them SLIGHTLY just in case (e.g. 1px or 10px) or back to full stagger.
+    // User said "отлетают метров на 300" -> This is an explosion.
+    // It implies collision is NOT fully disabled or constraints are fighting.
+    
+    // Let's bring back the 200px stagger. It was safe and looked cool.
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
-        // Spacing: 0 (Ghost Mode)
-        const b = new Bike(150, 200, brain);
+        // Spacing: 100px stagger to be safe
+        const b = new Bike(150 - (i * 100), 200, brain);
         b.addToWorld(world);
         population.push(b);
     }
