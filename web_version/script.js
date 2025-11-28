@@ -9,11 +9,12 @@ const GRAVITY_Y = 1;
 const CHASSIS_WIDTH = 80;
 const CHASSIS_HEIGHT = 20;
 const WHEEL_RADIUS = 25;
-const MOTOR_SPEED = 0.3;
+const MOTOR_SPEED = 0.5; // Base speed, human will have multiplier
+const LEAN_SPEED = 0.1;
 
 // GA Config
-const POPULATION_SIZE = 10;
-const MUTATION_RATE = 0.1;
+const POPULATION_SIZE = 2;
+const MUTATION_RATE = 0.2; // Higher mutation for small pop
 const RAY_COUNT = 5;
 const RAY_LENGTH = 300;
 const RAY_SPREAD = Math.PI / 2;
@@ -203,11 +204,25 @@ class Bike {
         this.alive = true;
         this.distance = 0;
         
-        const group = Body.nextGroup(true);
+        // Collision Filter:
+        // category 0x0002 (Bike)
+        // mask    0x0001 (Terrain only) - ignore other bikes
+        const bikeCategory = 0x0002;
+        const terrainCategory = 0x0001;
+        
+        // Parts of the SAME bike must not collide (use group)
+        // Actually, if we use category/mask, we can just say "Mask = Terrain".
+        // They won't collide with each other if they don't include 0x0002 in mask.
+        
+        const filter = {
+            category: bikeCategory,
+            mask: terrainCategory, // Collide ONLY with terrain
+            group: 0 // No group needed if using precise categories
+        };
         
         // Chassis
         this.chassis = Bodies.rectangle(x, y, CHASSIS_WIDTH, CHASSIS_HEIGHT, { 
-            collisionFilter: { group: group },
+            collisionFilter: filter,
             density: 0.04,
             friction: 0.5,
             label: 'chassis'
@@ -215,14 +230,14 @@ class Bike {
         
         // Wheels
         this.wheelBack = Bodies.circle(x - 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: { group: group },
+            collisionFilter: filter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
         });
         
         this.wheelFront = Bodies.circle(x + 30, y + 20, WHEEL_RADIUS, { 
-            collisionFilter: { group: group },
+            collisionFilter: filter,
             friction: 0.9,
             density: 0.05,
             restitution: 0.2
@@ -309,11 +324,15 @@ class Bike {
             // Forward (negative torque/velocity in matter.js usually? depends on coordinate)
             // Matter.js clockwise is positive. So forward is clockwise?
             // Let's try setting angular velocity target
-           Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity + gas * MOTOR_SPEED);
+            let speed = MOTOR_SPEED;
+            if(this.isHuman) speed *= 2; // Human needs more power
+            Body.setAngularVelocity(this.wheelBack, this.wheelBack.angularVelocity + gas * speed);
         }
         
         // Apply Lean Torque
-        Body.setAngularVelocity(this.chassis, this.chassis.angularVelocity + lean * 0.05);
+        let leanPower = 0.05;
+        if(this.isHuman) leanPower *= 3; // Human needs more snappy lean
+        Body.setAngularVelocity(this.chassis, this.chassis.angularVelocity + lean * leanPower);
         
         // Update Fitness
         this.distance = this.chassis.position.x;
@@ -638,52 +657,18 @@ function createPopulation() {
     // Clear array logic handled by caller, but we need to ensure clean state
     
     // Helper to spawn one bike
-    const spawnBike = (index, brain = null) => {
-        if (index >= POPULATION_SIZE) return;
-        
-        const b = new Bike(150, 200, brain);
-        b.addToWorld(world);
-        population.push(b);
-        
-        // Schedule next spawn
-        setTimeout(() => {
-            // Check if we are still in same generation/state
-            if (!isHumanMode && population.length < POPULATION_SIZE) {
-               // Next brain?
-               // The logic here is tricky because 'population' array is growing.
-               // We need the LIST of brains to be ready beforehand.
-            }
-        }, 500); 
-    };
+    // ... removed complex staggered logic ...
 
-    // Correct approach:
-    // 1. Create all bike objects but DON'T add to world immediately? 
-    //    No, we want them to physically appear later.
-    // 2. Or just create them all at once but at different X positions?
-    //    "Spawn 10 AI in a row" - easiest is different X start.
-    //    But user said "spawn by turn" -> delay.
-    
-    // Let's implement stagger spawn using a simple interval loop in the main loop or a recursive timeout
-    // BUT we need to pass the BRAINS correctly.
-    
-    // Let's change createPopulation to take an optional array of brains
-    // And spawning happens instantly but we place them with offset? 
-    // "Успели друг от друга уехать" implies time or space.
-    // Space is easier and less buggy than async spawning which messes up "Generation End" checks.
-    
     // Solution: Spawn all at once but with X spacing.
     // Bike 1: x=150
     // Bike 2: x=100
     // Bike 3: x=50...
     
-    // Or if user really wants DELAY (time):
-    // We must handle the "End Generation" check carefully (don't end if spawning is still happening).
-    
-    // Let's do SPACE spacing first, it's robust.
+    // Since collisions are disabled, we can spawn them at same spot
     for(let i=0; i<POPULATION_SIZE; i++) {
         const brain = (window.nextGenBrains && window.nextGenBrains[i]) ? window.nextGenBrains[i] : null;
         // Spacing: 80px between bikes
-        const b = new Bike(150 - (i * 100), 200, brain);
+        const b = new Bike(150, 200, brain);
         b.addToWorld(world);
         population.push(b);
     }
