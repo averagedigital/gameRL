@@ -1,17 +1,8 @@
 services:
-  # The Frontend (Static Site)
   - type: web
-    name: game-rl-web
-    env: static
-    staticPublishPath: .
-    buildCommand: null
-    startCommand: null
-
-  # The Backend (Python API)
-  - type: web
-    name: game-rl-api
-    env: python
-    root: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn server:app
+    name: game-rl
+    env: node
+    root: server
+    buildCommand: npm install
+    startCommand: node index.js
     plan: free
